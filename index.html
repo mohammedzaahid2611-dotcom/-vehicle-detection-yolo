@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Detection System - YOLO v8 Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .upload-area {
+            border: 2px dashed #007bff;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            background-color: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #0056b3;
+            background-color: #e9ecef;
+        }
+        .upload-area.dragover {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .detection-result {
+            margin-top: 20px;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .vehicle-count {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .detection-image {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .loading {
+            display: none;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 bg-dark text-white p-4" style="min-height: 100vh;">
+                <h3><i class="fas fa-car"></i> Vehicle Detection</h3>
+                <hr>
+                <div class="stats-card">
+                    <h5><i class="fas fa-chart-line"></i> Total Detections</h5>
+                    <div class="vehicle-count" id="totalDetections">0</div>
+                </div>
+                
+                <div class="mt-4">
+                    <h6><i class="fas fa-list"></i> Vehicle Types</h6>
+                    <ul class="list-unstyled" id="vehicleTypes">
+                        <li><i class="fas fa-car text-primary"></i> Cars: <span id="carCount">0</span></li>
+                        <li><i class="fas fa-motorcycle text-warning"></i> Motorcycles: <span id="motorcycleCount">0</span></li>
+                        <li><i class="fas fa-bus text-success"></i> Buses: <span id="busCount">0</span></li>
+                        <li><i class="fas fa-truck text-info"></i> Trucks: <span id="truckCount">0</span></li>
+                    </ul>
+                </div>
+                
+                <div class="mt-4">
+                    <h6><i class="fas fa-clock"></i> Last Detection</h6>
+                    <small id="lastDetection">Never</small>
+                </div>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="col-md-9 p-4">
+                <h2><i class="fas fa-upload"></i> Upload Image or Video for Detection</h2>
+                
+                <!-- Upload Area -->
+                <div class="upload-area" id="uploadArea">
+                    <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                    <h4>Drag & Drop Image or Video Here</h4>
+                    <p>Supports: Images (JPG, PNG, GIF) and Videos (MP4, AVI, MOV)</p>
+                    <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;">
+                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-folder-open"></i> Choose File
+                    </button>
+                </div>
+                
+                <!-- Loading Spinner -->
+                <div class="text-center loading" id="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Processing image...</p>
+                </div>
+                
+                <!-- Detection Results -->
+                <div class="detection-result" id="detectionResult" style="display: none;">
+                    <h4><i class="fas fa-search"></i> Detection Results</h4>
+                    
+                    <!-- Image Results -->
+                    <div id="imageResults" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <img id="resultImage" class="detection-image" alt="Detection Result">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-info-circle"></i> Detection Details</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="detectionDetails"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Video Results -->
+                    <div id="videoResults" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-video"></i> Video Processing Complete</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-success">
+                                            <i class="fas fa-check-circle"></i> Your video has been processed successfully!
+                                        </div>
+                                        <div id="videoStats"></div>
+                                        <div class="mt-3">
+                                            <a id="downloadLink" href="#" class="btn btn-success btn-lg">
+                                                <i class="fas fa-download"></i> Download Processed Video
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5><i class="fas fa-chart-bar"></i> Video Statistics</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="videoDetails"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Charts -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h5><i class="fas fa-chart-line"></i> Detection History</h5>
+                            <div id="detectionChart"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h5><i class="fas fa-chart-pie"></i> Vehicle Distribution</h5>
+                            <div id="vehicleChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let detectionHistory = [];
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStats();
+            updateCharts();
+            
+            // Update stats every 5 seconds
+            setInterval(updateStats, 5000);
+            setInterval(updateCharts, 10000);
+        });
+        
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+                alert('Please select an image or video file.');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('detectionResult').style.display = 'none';
+            
+            // Update loading message based on file type
+            const loadingText = document.querySelector('#loading p');
+            if (file.type.startsWith('video/')) {
+                loadingText.textContent = 'Processing video... This may take a few minutes.';
+            } else {
+                loadingText.textContent = 'Processing image...';
+            }
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                
+                if (data.success) {
+                    if (data.type === 'image') {
+                        displayImageResults(data);
+                    } else if (data.type === 'video') {
+                        displayVideoResults(data);
+                    }
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading').style.display = 'none';
+                console.error('Error:', error);
+                alert('An error occurred while processing the image.');
+            });
+        }
+        
+        function displayImageResults(data) {
+            // Hide video results, show image results
+            document.getElementById('videoResults').style.display = 'none';
+            document.getElementById('imageResults').style.display = 'block';
+            
+            // Display result image
+            document.getElementById('resultImage').src = 'data:image/jpeg;base64,' + data.image;
+            
+            // Display detection details
+            const detailsDiv = document.getElementById('detectionDetails');
+            detailsDiv.innerHTML = `
+                <p><strong>Total Vehicles Detected:</strong> ${data.stats.total_vehicles}</p>
+                <ul>
+                    ${Object.entries(data.stats.vehicle_breakdown).map(([vehicle, count]) => 
+                        `<li><strong>${vehicle.charAt(0).toUpperCase() + vehicle.slice(1)}:</strong> ${count}</li>`
+                    ).join('')}
+                </ul>
+            `;
+            
+            // Show results
+            document.getElementById('detectionResult').style.display = 'block';
+            
+            // Update stats
+            updateStats();
+        }
+        
+        function displayVideoResults(data) {
+            // Hide image results, show video results
+            document.getElementById('imageResults').style.display = 'none';
+            document.getElementById('videoResults').style.display = 'block';
+            
+            // Display video statistics
+            const videoStatsDiv = document.getElementById('videoStats');
+            videoStatsDiv.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Total Frames Processed:</strong> ${data.total_frames}</p>
+                        <p><strong>Total Detections:</strong> ${data.stats.total_detections}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Processing Time:</strong> ${Math.round(data.total_frames / 30)} seconds (estimated)</p>
+                        <p><strong>Output File:</strong> ${data.output_file}</p>
+                    </div>
+                </div>
+            `;
+            
+            // Display detection summary
+            const videoDetailsDiv = document.getElementById('videoDetails');
+            videoDetailsDiv.innerHTML = `
+                <h6>Vehicle Detection Summary:</h6>
+                <ul class="list-unstyled">
+                    ${Object.entries(data.detection_summary).map(([vehicle, count]) => 
+                        `<li><i class="fas fa-car text-primary"></i> ${vehicle.charAt(0).toUpperCase() + vehicle.slice(1)}: ${count}</li>`
+                    ).join('')}
+                </ul>
+            `;
+            
+            // Set up download link
+            document.getElementById('downloadLink').href = `/download/${data.output_file}`;
+            
+            // Show results
+            document.getElementById('detectionResult').style.display = 'block';
+            
+            // Update stats
+            updateStats();
+        }
+        
+        function updateStats() {
+            fetch('/stats')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('totalDetections').textContent = data.total_detections;
+                document.getElementById('carCount').textContent = data.vehicle_counts.car || 0;
+                document.getElementById('motorcycleCount').textContent = data.vehicle_counts.motorcycle || 0;
+                document.getElementById('busCount').textContent = data.vehicle_counts.bus || 0;
+                document.getElementById('truckCount').textContent = data.vehicle_counts.truck || 0;
+                
+                if (data.last_detection_time) {
+                    const lastDetection = new Date(data.last_detection_time * 1000);
+                    document.getElementById('lastDetection').textContent = lastDetection.toLocaleString();
+                }
+            })
+            .catch(error => console.error('Error updating stats:', error));
+        }
+        
+        function updateCharts() {
+            fetch('/history')
+            .then(response => response.json())
+            .then(data => {
+                updateDetectionChart(data);
+                updateVehicleChart(data);
+            })
+            .catch(error => console.error('Error updating charts:', error));
+        }
+        
+        function updateDetectionChart(data) {
+            const trace = {
+                x: data.timestamps,
+                y: data.detections,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Detections',
+                line: { color: '#007bff' }
+            };
+            
+            const layout = {
+                title: 'Detection Count Over Time',
+                xaxis: { title: 'Time' },
+                yaxis: { title: 'Number of Detections' },
+                margin: { t: 40, b: 40, l: 40, r: 40 }
+            };
+            
+            Plotly.newPlot('detectionChart', [trace], layout, {responsive: true});
+        }
+        
+        function updateVehicleChart(data) {
+            const vehicleTotals = {};
+            Object.keys(data.vehicles).forEach(vehicle => {
+                vehicleTotals[vehicle] = data.vehicles[vehicle].reduce((a, b) => a + b, 0);
+            });
+            
+            const trace = {
+                labels: Object.keys(vehicleTotals),
+                values: Object.values(vehicleTotals),
+                type: 'pie',
+                marker: {
+                    colors: ['#007bff', '#ffc107', '#28a745', '#17a2b8']
+                }
+            };
+            
+            const layout = {
+                title: 'Vehicle Type Distribution',
+                margin: { t: 40, b: 40, l: 40, r: 40 }
+            };
+            
+            Plotly.newPlot('vehicleChart', [trace], layout, {responsive: true});
+        }
+    </script>
+</body>
+</html>
